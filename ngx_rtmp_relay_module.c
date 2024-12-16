@@ -1794,7 +1794,7 @@ ngx_rtmp_relay_push_pull(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         NGX_RTMP_RELAY_NUM_PAR("live",        live);
         NGX_RTMP_RELAY_NUM_PAR("start",       start);
         NGX_RTMP_RELAY_NUM_PAR("stop",        stop);
-        NGX_RTMP_RELAY_NUM_PAR("passArgs",    pass_args);
+        NGX_RTMP_RELAY_NUM_PAR("pass_args",    pass_args);
 
 
 #undef NGX_RTMP_RELAY_STR_PAR

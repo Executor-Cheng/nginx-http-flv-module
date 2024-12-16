@@ -40,8 +40,8 @@ static void ngx_rtmp_codec_dump_header(ngx_rtmp_session_t *s, const char *type,
 
 typedef struct {
     ngx_uint_t                      meta;
-    ngx_str_t                       serverName;
-    ngx_str_t                       encoderName;
+    ngx_str_t                       server_name;
+    ngx_str_t                       encoder_name;
 } ngx_rtmp_codec_app_conf_t;
 
 
@@ -62,18 +62,18 @@ static ngx_command_t  ngx_rtmp_codec_commands[] = {
       offsetof(ngx_rtmp_codec_app_conf_t, meta),
       &ngx_rtmp_codec_meta_slots },
 
-    { ngx_string("serverName"),
+    { ngx_string("server_name"),
       NGX_RTMP_MAIN_CONF | NGX_RTMP_SRV_CONF | NGX_RTMP_APP_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_RTMP_APP_CONF_OFFSET,
-      offsetof(ngx_rtmp_codec_app_conf_t, serverName),
+      offsetof(ngx_rtmp_codec_app_conf_t, server_name),
       NULL },
 
-    { ngx_string("encoderName"),
+    { ngx_string("encoder_name"),
       NGX_RTMP_MAIN_CONF | NGX_RTMP_SRV_CONF | NGX_RTMP_APP_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_RTMP_APP_CONF_OFFSET,
-      offsetof(ngx_rtmp_codec_app_conf_t, encoderName),
+      offsetof(ngx_rtmp_codec_app_conf_t, encoder_name),
       NULL },
 
       ngx_null_command
@@ -727,11 +727,11 @@ ngx_rtmp_codec_reconstruct_meta(ngx_rtmp_session_t *s)
         ctx->meta = NULL;
     }
 
-    if (cacf->serverName.len) {
-        out_inf[0].data = cacf->serverName.data;
+    if (cacf->server_name.len) {
+        out_inf[0].data = cacf->server_name.data;
     }
-    if (cacf->encoderName.len) {
-        out_inf[14].data = cacf->encoderName.data;
+    if (cacf->encoder_name.len) {
+        out_inf[14].data = cacf->encoder_name.data;
         out_elts[1].len++;
     }
 
@@ -1007,7 +1007,7 @@ ngx_rtmp_codec_merge_app_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_rtmp_codec_app_conf_t *conf = child;
 
     ngx_conf_merge_uint_value(conf->meta, prev->meta, NGX_RTMP_CODEC_META_ON);
-    ngx_conf_merge_str_value(conf->serverName, prev->serverName, NGX_RTMP_CODEC_META_SERVER_NAME);
+    ngx_conf_merge_str_value(conf->server_name, prev->server_name, NGX_RTMP_CODEC_META_SERVER_NAME);
 
     return NGX_CONF_OK;
 }
