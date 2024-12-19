@@ -103,7 +103,8 @@ typedef struct {
     ngx_uint_t                  sample_size;    /* 1=8bit, 2=16bit */
     ngx_uint_t                  audio_channels; /* 1, 2 */
     u_char                      profile[32];
-    u_char                      level[32];
+	u_char                      level[32];
+	u_char                      encoder[128];
 
     ngx_chain_t                *avc_header;
     ngx_chain_t                *aac_header;

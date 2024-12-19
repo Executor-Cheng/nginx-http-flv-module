@@ -18,6 +18,7 @@
 #define NGX_RTMP_CODEC_META_COPY    2
 
 #define NGX_RTMP_CODEC_META_SERVER_NAME "NGINX HTTP-FLV (https://github.com/winshining/nginx-http-flv-module)"
+#define NGX_RTMP_CODEC_META_ENCODER_NAME ""
 
 static void * ngx_rtmp_codec_create_app_conf(ngx_conf_t *cf);
 static char * ngx_rtmp_codec_merge_app_conf(ngx_conf_t *cf,
@@ -62,15 +63,15 @@ static ngx_command_t  ngx_rtmp_codec_commands[] = {
       offsetof(ngx_rtmp_codec_app_conf_t, meta),
       &ngx_rtmp_codec_meta_slots },
 
-    { ngx_string("server_name"),
-      NGX_RTMP_MAIN_CONF | NGX_RTMP_SRV_CONF | NGX_RTMP_APP_CONF | NGX_CONF_TAKE1,
+    { ngx_string("rtmp_server_name"),
+	  NGX_RTMP_MAIN_CONF | NGX_RTMP_SRV_CONF | NGX_RTMP_APP_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_RTMP_APP_CONF_OFFSET,
       offsetof(ngx_rtmp_codec_app_conf_t, server_name),
       NULL },
 
     { ngx_string("encoder_name"),
-      NGX_RTMP_MAIN_CONF | NGX_RTMP_SRV_CONF | NGX_RTMP_APP_CONF | NGX_CONF_TAKE1,
+	  NGX_RTMP_MAIN_CONF | NGX_RTMP_SRV_CONF | NGX_RTMP_APP_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_RTMP_APP_CONF_OFFSET,
       offsetof(ngx_rtmp_codec_app_conf_t, encoder_name),
@@ -626,6 +627,7 @@ ngx_rtmp_codec_reconstruct_meta(ngx_rtmp_session_t *s)
     ngx_rtmp_core_srv_conf_t       *cscf;
     ngx_rtmp_codec_app_conf_t      *cacf;
     ngx_int_t                       rc;
+	size_t                          encoder_len;
 
     static struct {
         double                      width;
@@ -637,7 +639,8 @@ ngx_rtmp_codec_reconstruct_meta(ngx_rtmp_session_t *s)
         double                      audio_data_rate;
         double                      audio_codec_id;
         u_char                      profile[32];
-        u_char                      level[32];
+		u_char                      level[32];
+		u_char                      encoder[128];
     }                               v;
 
     static ngx_rtmp_amf_elt_t       out_inf[] = {
@@ -700,7 +703,7 @@ ngx_rtmp_codec_reconstruct_meta(ngx_rtmp_session_t *s)
 
         { NGX_RTMP_AMF_STRING,
           ngx_string("encoder"),
-          NULL, 0 },
+          &v.encoder, sizeof(v.encoder)},
     };
 
     static ngx_rtmp_amf_elt_t       out_elts[] = {
@@ -711,7 +714,7 @@ ngx_rtmp_codec_reconstruct_meta(ngx_rtmp_session_t *s)
 
         { NGX_RTMP_AMF_OBJECT,
           ngx_null_string,
-          out_inf, sizeof(out_inf) - 1 },
+          out_inf, sizeof(out_inf) },
     };
 
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_codec_module);
@@ -730,10 +733,6 @@ ngx_rtmp_codec_reconstruct_meta(ngx_rtmp_session_t *s)
     if (cacf->server_name.len) {
         out_inf[0].data = cacf->server_name.data;
     }
-    if (cacf->encoder_name.len) {
-        out_inf[14].data = cacf->encoder_name.data;
-        out_elts[1].len++;
-    }
 
     v.width = ctx->width;
     v.height = ctx->height;
@@ -744,7 +743,26 @@ ngx_rtmp_codec_reconstruct_meta(ngx_rtmp_session_t *s)
     v.audio_data_rate = ctx->audio_data_rate;
     v.audio_codec_id = ctx->audio_codec_id;
     ngx_memcpy(v.profile, ctx->profile, sizeof(ctx->profile));
-    ngx_memcpy(v.level, ctx->level, sizeof(ctx->level));
+	ngx_memcpy(v.level, ctx->level, sizeof(ctx->level));
+
+	encoder_len = cacf->encoder_name.len;
+	if (encoder_len)
+	{
+		if (encoder_len > sizeof(v.encoder) - 1)
+		{
+			encoder_len = sizeof(v.encoder) - 1;
+		}
+		ngx_memcpy(v.encoder, cacf->encoder_name.data, encoder_len);
+		v.encoder[encoder_len] = 0;
+	}
+	else if (ctx->encoder[0])
+	{
+		ngx_memcpy(v.encoder, ctx->encoder, sizeof(ctx->encoder));
+	}
+	else
+	{
+		out_elts[1].len--;
+	}
 
     rc = ngx_rtmp_append_amf(s, &ctx->meta, NULL, out_elts,
                              sizeof(out_elts) / sizeof(out_elts[0]));
@@ -825,6 +843,7 @@ ngx_rtmp_codec_meta_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         u_char                      audio_codec_id_s[32];
         u_char                      profile[32];
         u_char                      level[32];
+        u_char                      encoder[128];
     }                               v;
 
     static ngx_rtmp_amf_elt_t       in_video_codec_id[] = {
@@ -894,6 +913,10 @@ ngx_rtmp_codec_meta_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         { NGX_RTMP_AMF_STRING,
           ngx_string("level"),
           &v.level, sizeof(v.level) },
+
+        { NGX_RTMP_AMF_STRING,
+          ngx_string("encoder"),
+          &v.encoder, sizeof(v.encoder)},
     };
 
     static ngx_rtmp_amf_elt_t       in_elts[] = {
@@ -959,7 +982,8 @@ ngx_rtmp_codec_meta_data(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             ? 0 : v.audio_codec_id_n == 0
             ? NGX_RTMP_AUDIO_UNCOMPRESSED : (ngx_uint_t) v.audio_codec_id_n);
     ngx_memcpy(ctx->profile, v.profile, sizeof(v.profile));
-    ngx_memcpy(ctx->level, v.level, sizeof(v.level));
+	ngx_memcpy(ctx->level, v.level, sizeof(v.level));
+	ngx_memcpy(ctx->encoder, v.encoder, sizeof(v.encoder));
 
     ngx_log_debug8(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
             "codec: data frame: "
@@ -1007,7 +1031,8 @@ ngx_rtmp_codec_merge_app_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_rtmp_codec_app_conf_t *conf = child;
 
     ngx_conf_merge_uint_value(conf->meta, prev->meta, NGX_RTMP_CODEC_META_ON);
-    ngx_conf_merge_str_value(conf->server_name, prev->server_name, NGX_RTMP_CODEC_META_SERVER_NAME);
+	ngx_conf_merge_str_value(conf->server_name, prev->server_name, NGX_RTMP_CODEC_META_SERVER_NAME);
+	ngx_conf_merge_str_value(conf->encoder_name, prev->encoder_name, NGX_RTMP_CODEC_META_ENCODER_NAME);
 
     return NGX_CONF_OK;
 }
